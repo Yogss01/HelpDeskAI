@@ -1,3 +1,4 @@
+import Dashboard from "./components/Dashboard.jsx";
 import Tickets from "./components/Tickets.jsx";
 import React from "react";
 import { useState } from "react";
@@ -59,17 +60,9 @@ export default function App() {
         {page === "tickets" && <Tickets />}
 
         {page === "dashboard" && (
-          <section className="panel">
-            <h3>Support Overview</h3>
-            <p>
-              Monitor helpdesk activity and support requests.
-            </p>
-            <p className="muted">
-              Dashboard statistics will be added after
-              ticket management.
-            </p>
-          </section>
-        )}
+          <Dashboard onNavigate={setPage} />
+          )}
+
       </main>
     </div>
   );
