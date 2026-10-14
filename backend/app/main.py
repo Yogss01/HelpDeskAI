@@ -1,7 +1,10 @@
+
 from time import perf_counter
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from uuid import uuid4
+from pathlib import Path
+import json
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,10 +19,9 @@ from app.rag import (
     search_documents,
     delete_document as remove_document_from_index,
 )
-from pathlib import Path
-import json
 from app.llm import generate_answer
-from app.classifier import predict_category
+from app.classifier import predict_category_with_confidence
+
 
 load_dotenv()
 
@@ -44,10 +46,18 @@ class ChatRequest(BaseModel):
     question: str = Field(min_length=2, max_length=2000)
 
 
+# --------------------------------------------------
+# Health Check
+# --------------------------------------------------
+
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
 
+
+# --------------------------------------------------
+# List Tickets
+# --------------------------------------------------
 
 @app.get("/api/tickets")
 def list_tickets():
@@ -55,11 +65,18 @@ def list_tickets():
         rows = db.execute(
             "SELECT * FROM tickets ORDER BY created_at DESC"
         ).fetchall()
-        return [dict(row) for row in rows]
+
+    return [dict(row) for row in rows]
+
+
+# --------------------------------------------------
+# Ticket Analytics
+# --------------------------------------------------
+
 
 @app.get("/api/analytics")
 def get_ticket_analytics():
-    """Return ticket counts grouped by status and priority."""
+    """Return ticket counts grouped by status, priority, and category."""
 
     with connect() as db:
         total = db.execute(
@@ -82,6 +99,14 @@ def get_ticket_analytics():
             """
         ).fetchall()
 
+        category_rows = db.execute(
+            """
+            SELECT category, COUNT(*) AS count
+            FROM tickets
+            GROUP BY category
+            """
+        ).fetchall()
+
     status_counts = {
         "open": 0,
         "in_progress": 0,
@@ -100,26 +125,51 @@ def get_ticket_analytics():
     for row in priority_rows:
         priority_counts[row["priority"]] = row["count"]
 
+    category_counts = {
+        "account": 0,
+        "billing": 0,
+        "technical": 0,
+        "general": 0,
+    }
+
+    for row in category_rows:
+        category_counts[row["category"]] = row["count"]
+
     return {
         "total_tickets": total,
         "status_counts": status_counts,
         "priority_counts": priority_counts,
+        "category_counts": category_counts,
     }
 
 
+# --------------------------------------------------
+# Create Ticket with Automatic Classification
+# --------------------------------------------------
+
 @app.post("/api/tickets", status_code=201)
 def create_ticket(ticket: TicketCreate):
-    # Convert the incoming ticket into a dictionary.
+    """Create a ticket and classify it when confidence is sufficient."""
+
     ticket_data = ticket.model_dump()
 
-    # Predict a category from the ticket description.
-    predicted_category = predict_category(
+    # Predict the category and calculate estimated confidence.
+    prediction = predict_category_with_confidence(
         ticket_data["description"]
     )
 
-    # Preserve the user's selected category when it is not "general".
-    # Otherwise, use the predicted category.
-    if ticket_data["category"] == "general":
+    predicted_category = prediction["category"]
+    confidence = prediction["confidence"]
+
+    # Initial experimental confidence threshold: 60%.
+    confidence_threshold = 0.45
+
+    # Automatically classify tickets submitted as "general"
+    # only when the prediction reaches the threshold.
+    if (
+        ticket_data["category"] == "general"
+        and confidence >= confidence_threshold
+    ):
         ticket_data["category"] = predicted_category
 
     # Prepare the ticket for database insertion.
@@ -130,15 +180,30 @@ def create_ticket(ticket: TicketCreate):
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
+    # Save the ticket exactly once.
     with connect() as db:
         db.execute(
             """
             INSERT INTO tickets
-            (id, title, description, category, priority,
-             status, created_at)
+            (
+                id,
+                title,
+                description,
+                category,
+                priority,
+                status,
+                created_at
+            )
             VALUES
-            (:id, :title, :description, :category, :priority,
-             :status, :created_at)
+            (
+                :id,
+                :title,
+                :description,
+                :category,
+                :priority,
+                :status,
+                :created_at
+            )
             """,
             item,
         )
@@ -146,22 +211,9 @@ def create_ticket(ticket: TicketCreate):
     return item
 
 
-
-    with connect() as db:
-        db.execute(
-            """
-            INSERT INTO tickets
-            (id, title, description, category, priority,
-             status, created_at)
-            VALUES
-            (:id, :title, :description, :category, :priority,
-             :status, :created_at)
-            """,
-            item,
-        )
-
-    return item
-
+# --------------------------------------------------
+# Update Ticket Status
+# --------------------------------------------------
 
 @app.patch("/api/tickets/{ticket_id}")
 def update_ticket(ticket_id: str, update: TicketUpdate):
@@ -172,7 +224,10 @@ def update_ticket(ticket_id: str, update: TicketUpdate):
         )
 
         if result.rowcount == 0:
-            raise HTTPException(404, "Ticket not found")
+            raise HTTPException(
+                status_code=404,
+                detail="Ticket not found",
+            )
 
         row = db.execute(
             "SELECT * FROM tickets WHERE id = ?",
@@ -182,20 +237,34 @@ def update_ticket(ticket_id: str, update: TicketUpdate):
     return dict(row)
 
 
+# --------------------------------------------------
+# Upload Document
+# --------------------------------------------------
+
 @app.post("/api/documents")
 async def upload_document(file: UploadFile = File(...)):
     filename = file.filename or ""
     content = await file.read()
 
     if len(content) > 10 * 1024 * 1024:
-        raise HTTPException(413, "Maximum upload size is 10 MB")
+        raise HTTPException(
+            status_code=413,
+            detail="Maximum upload size is 10 MB",
+        )
 
     try:
         text = extract_document(filename, content)
+
         print("EXTRACTED DOCUMENT TEXT:", text[:3000])
+
         chunks = add_document(text, filename)
+
     except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
     finally:
         await file.close()
 
@@ -205,6 +274,10 @@ async def upload_document(file: UploadFile = File(...)):
         "status": "indexed",
     }
 
+
+# --------------------------------------------------
+# List Uploaded Documents
+# --------------------------------------------------
 
 @app.get("/api/documents")
 def list_documents():
@@ -222,7 +295,10 @@ def list_documents():
     documents = {}
 
     for record in records:
-        filename = record.get("source", "Unknown document")
+        filename = record.get(
+            "source",
+            "Unknown document",
+        )
 
         if filename not in documents:
             documents[filename] = {
@@ -234,6 +310,11 @@ def list_documents():
         documents[filename]["chunks"] += 1
 
     return list(documents.values())
+
+
+# --------------------------------------------------
+# Delete Uploaded Document
+# --------------------------------------------------
 
 @app.delete("/api/documents")
 def delete_document_endpoint(filename: str):
@@ -254,9 +335,13 @@ def delete_document_endpoint(filename: str):
     }
 
 
+# --------------------------------------------------
+# AI Document Chat
+# --------------------------------------------------
+
 @app.post("/api/chat")
 def chat(request: ChatRequest):
-    
+
     question = request.question.strip()
     question_lower = question.lower()
 
@@ -265,7 +350,7 @@ def chat(request: ChatRequest):
         "Please create a support ticket for further assistance."
     )
 
-    # Handle questions asking what to do when information is missing.
+    # Handle questions about missing document information.
     missing_answer_phrases = [
         "if the document does not contain the answer",
         "if the document doesn't contain the answer",
@@ -284,10 +369,10 @@ def chat(request: ChatRequest):
             "needs_ticket": True,
         }
 
-
+    # Search for relevant document chunks.
     search_start = perf_counter()
 
-    # Use a focused search phrase for dress-code questions.
+    # Use a focused query for dress-code questions.
     is_dress_question = any(
         term in question_lower
         for term in [
@@ -305,34 +390,35 @@ def chat(request: ChatRequest):
     else:
         search_query = question
 
-    results = search_documents(search_query, top_k=20)
+    results = search_documents(
+        search_query,
+        top_k=20,
+    )
 
-    # DEBUG: Check the retrieved document chunks.
+    # Debug information for document retrieval.
     print(f"SEARCH QUERY: {search_query}")
     print(f"RETRIEVED CHUNKS: {len(results)}")
 
     for item in results[:5]:
-        print("SCORE:", round(float(item.get("score", 0)), 3))
-        print("SOURCE:", item.get("source", "Unknown"))
-        print("TEXT:", item.get("text", "")[:300])
+        print(
+            "SCORE:",
+            round(float(item.get("score", 0)), 3),
+        )
+        print(
+            "SOURCE:",
+            item.get("source", "Unknown"),
+        )
+        print(
+            "TEXT:",
+            item.get("text", "")[:300],
+        )
         print("-" * 40)
 
     search_time = perf_counter() - search_start
-    print(f"DOCUMENT SEARCH TIME: {search_time:.2f} seconds")
-    
 
-    # DEBUG: Print retrieved document chunks.
-    print(f"RETRIEVED CHUNKS: {len(results)}")
-
-    for item in results[:5]:
-        print("SCORE:", round(float(item.get("score", 0)), 3))
-        print("SOURCE:", item.get("source", "Unknown"))
-        print("TEXT:", item.get("text", "")[:300])
-        print("-" * 40)
-
-    search_time = perf_counter() - search_start
-    print(f"DOCUMENT SEARCH TIME: {search_time:.2f} seconds")
-
+    print(
+        f"DOCUMENT SEARCH TIME: {search_time:.2f} seconds"
+    )
 
     # Remove duplicate chunks.
     unique_results = []
@@ -341,66 +427,74 @@ def chat(request: ChatRequest):
     for item in results:
         text = item.get("text", "").strip()
         filename = item.get("source", "Unknown source")
+
         key = (filename, text)
 
         if text and key not in seen:
             seen.add(key)
             unique_results.append(item)
 
-    # Prioritize the relevant policy section for dress-code questions.
-    if any(term in question_lower for term in [
-        "dress code",
-        "dress",
-        "attire",
-        "clothing",
-        "what to wear",
-        "appearance",
-    ]):
+    # Prioritize relevant evidence for dress-code questions.
+    if is_dress_question:
         matching = [
             item
             for item in unique_results
             if (
-                "neat, clean and appropriate" in item["text"].lower()
-                or "dress and appearance" in item["text"].lower()
+                "neat, clean and appropriate"
+                in item["text"].lower()
+                or "dress and appearance"
+                in item["text"].lower()
                 or (
                     "appearance" in item["text"].lower()
-                    and "personal hygiene" in item["text"].lower()
+                    and "personal hygiene"
+                    in item["text"].lower()
                 )
             )
         ]
 
-        sources = matching[:2] if matching else unique_results[:4]
+        sources = (
+            matching[:2]
+            if matching
+            else unique_results[:4]
+        )
+
     # Prioritize direct evidence for employee-name questions.
     elif "employee name" in question_lower:
         matching = [
-            item for item in unique_results
+            item
+            for item in unique_results
             if "employee name" in item["text"].lower()
         ]
 
-        sources = matching[:1] if matching else unique_results[:4]
+        sources = (
+            matching[:1]
+            if matching
+            else unique_results[:4]
+        )
 
     else:
         sources = unique_results[:4]
 
-
+    # Generate an answer using the retrieved evidence.
     llm_start = perf_counter()
-    answer = generate_answer(question, sources)
-    llm_time = perf_counter() - llm_start
-    print(f"OLLAMA GENERATION TIME: {llm_time:.2f} seconds")
 
-    if not answer or not isinstance(answer, str):
-        answer = (
-            "I couldn't find this information in the uploaded documents. "
-            "Please create a support ticket for further assistance."
-        )
-
-    fallback_text = (
-        "I couldn't find this information in the uploaded documents. "
-        "Please create a support ticket for further assistance."
+    answer = generate_answer(
+        question,
+        sources,
     )
 
+    llm_time = perf_counter() - llm_start
+
+    print(
+        f"OLLAMA GENERATION TIME: {llm_time:.2f} seconds"
+    )
+
+    if not answer or not isinstance(answer, str):
+        answer = fallback_answer
+
+    # Determine whether the user should create a support ticket.
     needs_ticket = (
-        answer.strip() == fallback_text
+        answer.strip() == fallback_answer
         or answer.strip().startswith("Fallback answer:")
     )
 
@@ -411,9 +505,15 @@ def chat(request: ChatRequest):
         "answer": answer,
         "sources": [
             {
-                "filename": item.get("source", "Unknown source"),
+                "filename": item.get(
+                    "source",
+                    "Unknown source",
+                ),
                 "excerpt": item.get("text", "")[:250],
-                "score": round(float(item.get("score", 0)), 3),
+                "score": round(
+                    float(item.get("score", 0)),
+                    3,
+                ),
             }
             for item in sources
         ],

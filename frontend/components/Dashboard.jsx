@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import {
   Ticket,
@@ -8,6 +9,10 @@ import {
   MessageSquare,
   UploadCloud,
   ArrowRight,
+  CreditCard,
+  Wrench,
+  Users,
+  HelpCircle,
 } from "lucide-react";
 
 const API_URL = "http://127.0.0.1:8000";
@@ -51,7 +56,9 @@ export default function Dashboard({ onNavigate }) {
       const data = await response.json();
 
       if (!Array.isArray(data)) {
-        throw new Error("The server returned an unexpected ticket format.");
+        throw new Error(
+          "The server returned an unexpected ticket format."
+        );
       }
 
       setTickets(data);
@@ -77,7 +84,9 @@ export default function Dashboard({ onNavigate }) {
         !data.status_counts ||
         !data.priority_counts
       ) {
-        throw new Error("The server returned unexpected analytics data.");
+        throw new Error(
+          "The server returned unexpected analytics data."
+        );
       }
 
       setAnalytics(data);
@@ -121,18 +130,6 @@ export default function Dashboard({ onNavigate }) {
 
   const totalCount = analytics?.total_tickets ?? tickets.length;
 
-  const recentTickets = [...tickets]
-    .sort((a, b) => {
-      const dateA = new Date(a.created_at || 0).getTime();
-      const dateB = new Date(b.created_at || 0).getTime();
-
-      return (
-        (Number.isNaN(dateB) ? 0 : dateB) -
-        (Number.isNaN(dateA) ? 0 : dateA)
-      );
-    })
-    .slice(0, 5);
-
   const stats = [
     {
       label: "Total Tickets",
@@ -159,6 +156,53 @@ export default function Dashboard({ onNavigate }) {
       className: "dashboard-green",
     },
   ];
+
+  // Ticket counts grouped by category.
+  // Missing categories safely default to zero.
+  const categoryStats = [
+    {
+      label: "Account",
+      value: analytics?.category_counts?.account ?? 0,
+      icon: Users,
+      className: "dashboard-blue",
+    },
+    {
+      label: "Billing",
+      value: analytics?.category_counts?.billing ?? 0,
+      icon: CreditCard,
+      className: "dashboard-green",
+    },
+    {
+      label: "Technical",
+      value: analytics?.category_counts?.technical ?? 0,
+      icon: Wrench,
+      className: "dashboard-purple",
+    },
+    {
+      label: "General",
+      value: analytics?.category_counts?.general ?? 0,
+      icon: HelpCircle,
+      className: "dashboard-orange",
+    },
+    {
+      label: "Other",
+      value: analytics?.category_counts?.other ?? 0,
+      icon: Ticket,
+      className: "dashboard-blue",
+    },
+  ];
+
+  const recentTickets = [...tickets]
+    .sort((a, b) => {
+      const dateA = new Date(a.created_at || 0).getTime();
+      const dateB = new Date(b.created_at || 0).getTime();
+
+      return (
+        (Number.isNaN(dateB) ? 0 : dateB) -
+        (Number.isNaN(dateA) ? 0 : dateA)
+      );
+    })
+    .slice(0, 5);
 
   return (
     <div className="dashboard">
@@ -211,12 +255,47 @@ export default function Dashboard({ onNavigate }) {
         ))}
       </div>
 
+      {/* Category analytics */}
+      <section className="dashboard-section">
+        <div className="dashboard-section-heading">
+          <div>
+            <h3>Tickets by Category</h3>
+            <p>
+              Distribution of support requests by category
+            </p>
+          </div>
+        </div>
+
+        <div className="dashboard-stats">
+          {categoryStats.map(
+            ({ label, value, icon: Icon, className }) => (
+              <article className="dashboard-stat" key={label}>
+                <div
+                  className={`dashboard-stat-icon ${className}`}
+                >
+                  <Icon size={22} />
+                </div>
+
+                <div>
+                  <p>{label}</p>
+                  <h3>
+                    {loading && analytics === null ? "—" : value}
+                  </h3>
+                </div>
+              </article>
+            )
+          )}
+        </div>
+      </section>
+
       {/* Priority analytics */}
       <section className="dashboard-section">
         <div className="dashboard-section-heading">
           <div>
             <h3>Tickets by Priority</h3>
-            <p>Distribution of support requests by priority</p>
+            <p>
+              Distribution of support requests by priority
+            </p>
           </div>
         </div>
 
@@ -277,7 +356,9 @@ export default function Dashboard({ onNavigate }) {
           <div className="dashboard-empty">
             <Ticket size={30} />
             <strong>No tickets yet</strong>
-            <p>Create a support ticket to see activity here.</p>
+            <p>
+              Create a support ticket to see activity here.
+            </p>
             <button
               type="button"
               onClick={() => onNavigate("tickets")}
@@ -347,7 +428,9 @@ export default function Dashboard({ onNavigate }) {
         <div className="dashboard-section-heading">
           <div>
             <h3>Quick Actions</h3>
-            <p>Continue working in your support workspace</p>
+            <p>
+              Continue working in your support workspace
+            </p>
           </div>
         </div>
 
@@ -360,7 +443,9 @@ export default function Dashboard({ onNavigate }) {
             <Ticket size={22} />
             <span>
               <strong>Manage Tickets</strong>
-              <small>Create and update support requests</small>
+              <small>
+                Create and update support requests
+              </small>
             </span>
             <ArrowRight size={18} />
           </button>
@@ -373,7 +458,9 @@ export default function Dashboard({ onNavigate }) {
             <MessageSquare size={22} />
             <span>
               <strong>Open AI Assistant</strong>
-              <small>Ask questions about uploaded documents</small>
+              <small>
+                Ask questions about uploaded documents
+              </small>
             </span>
             <ArrowRight size={18} />
           </button>
@@ -386,7 +473,9 @@ export default function Dashboard({ onNavigate }) {
             <UploadCloud size={22} />
             <span>
               <strong>Knowledge Base</strong>
-              <small>Upload and manage support documents</small>
+              <small>
+                Upload and manage support documents
+              </small>
             </span>
             <ArrowRight size={18} />
           </button>
