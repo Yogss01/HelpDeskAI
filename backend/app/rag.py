@@ -1,4 +1,5 @@
 
+import re
 import json
 from pathlib import Path
 
@@ -18,13 +19,23 @@ MIN_SCORE = 0.22
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
 
+
 def split_chunks(text, size=900, overlap=150):
     """Split document text into overlapping chunks."""
 
     if overlap >= size:
         raise ValueError("Overlap must be less than size")
 
+    # Remove common PDF encoding-corruption sequences.
+    text = re.sub(
+        r"(?:ÃƒÆ’|Ãƒâ€š|Ã¢â‚¬Å¡|Ã¢â‚¬Å“|Ã¢â‚¬â„¢|Ã‚)+",
+        " ",
+        text,
+    )
+
+    # Normalize whitespace.
     text = " ".join(text.split())
+
     chunks = []
 
     for start in range(0, len(text), size - overlap):

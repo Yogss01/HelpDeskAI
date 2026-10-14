@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import {
   Ticket,
@@ -31,6 +30,7 @@ function formatDate(dateValue) {
 
 export default function Dashboard({ onNavigate }) {
   const [tickets, setTickets] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -38,6 +38,9 @@ export default function Dashboard({ onNavigate }) {
     setLoading(true);
     setError("");
 
+    const errors = [];
+
+    // Load the ticket list.
     try {
       const response = await fetch(`${API_URL}/api/tickets`);
 
@@ -53,34 +56,70 @@ export default function Dashboard({ onNavigate }) {
 
       setTickets(data);
     } catch (err) {
-      setError(
+      errors.push(
         err.message ||
           "Could not connect to FastAPI. Check that the backend is running."
       );
-    } finally {
-      setLoading(false);
     }
+
+    // Load analytics from the backend.
+    try {
+      const response = await fetch(`${API_URL}/api/analytics`);
+
+      if (!response.ok) {
+        throw new Error("Could not load ticket analytics.");
+      }
+
+      const data = await response.json();
+
+      if (
+        typeof data.total_tickets !== "number" ||
+        !data.status_counts ||
+        !data.priority_counts
+      ) {
+        throw new Error("The server returned unexpected analytics data.");
+      }
+
+      setAnalytics(data);
+    } catch (err) {
+      errors.push(
+        err.message || "Could not load ticket analytics."
+      );
+    }
+
+    setError(errors.join(" "));
+    setLoading(false);
   }
 
   useEffect(() => {
     loadTickets();
   }, []);
 
-  const openCount = tickets.filter(
-    (ticket) => normalizeStatus(ticket.status) === "open"
-  ).length;
+  // Use analytics from FastAPI when available.
+  // Local counts provide a fallback if analytics cannot be loaded.
+  const openCount =
+    analytics?.status_counts?.open ??
+    tickets.filter(
+      (ticket) => normalizeStatus(ticket.status) === "open"
+    ).length;
 
-  const inProgressCount = tickets.filter(
-    (ticket) =>
-      normalizeStatus(ticket.status) === "in_progress"
-  ).length;
+  const inProgressCount =
+    analytics?.status_counts?.in_progress ??
+    tickets.filter(
+      (ticket) =>
+        normalizeStatus(ticket.status) === "in_progress"
+    ).length;
 
-  const resolvedCount = tickets.filter(
-    (ticket) =>
-      ["resolved", "closed"].includes(
-        normalizeStatus(ticket.status)
-      )
-  ).length;
+  const resolvedCount =
+    analytics?.status_counts?.resolved ??
+    tickets.filter(
+      (ticket) =>
+        ["resolved", "closed"].includes(
+          normalizeStatus(ticket.status)
+        )
+    ).length;
+
+  const totalCount = analytics?.total_tickets ?? tickets.length;
 
   const recentTickets = [...tickets]
     .sort((a, b) => {
@@ -97,7 +136,7 @@ export default function Dashboard({ onNavigate }) {
   const stats = [
     {
       label: "Total Tickets",
-      value: tickets.length,
+      value: totalCount,
       icon: Ticket,
       className: "dashboard-blue",
     },
@@ -146,12 +185,13 @@ export default function Dashboard({ onNavigate }) {
         <div className="dashboard-error" role="alert">
           <AlertCircle size={18} />
           <div>
-            <strong>Unable to load dashboard</strong>
+            <strong>Dashboard notice</strong>
             <p>{error}</p>
           </div>
         </div>
       )}
 
+      {/* Ticket summary cards */}
       <div className="dashboard-stats">
         {stats.map(({ label, value, icon: Icon, className }) => (
           <article className="dashboard-stat" key={label}>
@@ -162,13 +202,59 @@ export default function Dashboard({ onNavigate }) {
             <div>
               <p>{label}</p>
               <h3>
-                {loading && tickets.length === 0 ? "—" : value}
+                {loading && analytics === null && tickets.length === 0
+                  ? "—"
+                  : value}
               </h3>
             </div>
           </article>
         ))}
       </div>
 
+      {/* Priority analytics */}
+      <section className="dashboard-section">
+        <div className="dashboard-section-heading">
+          <div>
+            <h3>Tickets by Priority</h3>
+            <p>Distribution of support requests by priority</p>
+          </div>
+        </div>
+
+        <div className="dashboard-stats">
+          {[
+            {
+              label: "High Priority",
+              value: analytics?.priority_counts?.high ?? 0,
+              className: "dashboard-orange",
+            },
+            {
+              label: "Medium Priority",
+              value: analytics?.priority_counts?.medium ?? 0,
+              className: "dashboard-purple",
+            },
+            {
+              label: "Low Priority",
+              value: analytics?.priority_counts?.low ?? 0,
+              className: "dashboard-blue",
+            },
+          ].map(({ label, value, className }) => (
+            <article className="dashboard-stat" key={label}>
+              <div className={`dashboard-stat-icon ${className}`}>
+                <AlertCircle size={22} />
+              </div>
+
+              <div>
+                <p>{label}</p>
+                <h3>
+                  {loading && analytics === null ? "—" : value}
+                </h3>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {/* Recent tickets */}
       <section className="dashboard-section">
         <div className="dashboard-section-heading">
           <div>
@@ -187,11 +273,7 @@ export default function Dashboard({ onNavigate }) {
 
         {loading ? (
           <p className="dashboard-empty">Loading tickets...</p>
-        ) : error ? (
-          <p className="dashboard-empty">
-            Ticket information is unavailable.
-          </p>
-        ) : recentTickets.length === 0 ? (
+        ) : tickets.length === 0 ? (
           <div className="dashboard-empty">
             <Ticket size={30} />
             <strong>No tickets yet</strong>
@@ -225,7 +307,9 @@ export default function Dashboard({ onNavigate }) {
                         #{ticket.id}
                       </span>
                     </td>
+
                     <td>{ticket.category || "General"}</td>
+
                     <td>
                       <span
                         className={`dashboard-badge priority-${String(
@@ -235,6 +319,7 @@ export default function Dashboard({ onNavigate }) {
                         {ticket.priority || "Medium"}
                       </span>
                     </td>
+
                     <td>
                       <span
                         className={`dashboard-badge status-${normalizeStatus(
@@ -247,6 +332,7 @@ export default function Dashboard({ onNavigate }) {
                         )}
                       </span>
                     </td>
+
                     <td>{formatDate(ticket.created_at)}</td>
                   </tr>
                 ))}
@@ -256,6 +342,7 @@ export default function Dashboard({ onNavigate }) {
         )}
       </section>
 
+      {/* Quick actions */}
       <section className="dashboard-section">
         <div className="dashboard-section-heading">
           <div>

@@ -56,6 +56,56 @@ def list_tickets():
         ).fetchall()
         return [dict(row) for row in rows]
 
+@app.get("/api/analytics")
+def get_ticket_analytics():
+    """Return ticket counts grouped by status and priority."""
+
+    with connect() as db:
+        total = db.execute(
+            "SELECT COUNT(*) FROM tickets"
+        ).fetchone()[0]
+
+        status_rows = db.execute(
+            """
+            SELECT status, COUNT(*) AS count
+            FROM tickets
+            GROUP BY status
+            """
+        ).fetchall()
+
+        priority_rows = db.execute(
+            """
+            SELECT priority, COUNT(*) AS count
+            FROM tickets
+            GROUP BY priority
+            """
+        ).fetchall()
+
+    status_counts = {
+        "open": 0,
+        "in_progress": 0,
+        "resolved": 0,
+    }
+
+    for row in status_rows:
+        status_counts[row["status"]] = row["count"]
+
+    priority_counts = {
+        "low": 0,
+        "medium": 0,
+        "high": 0,
+    }
+
+    for row in priority_rows:
+        priority_counts[row["priority"]] = row["count"]
+
+    return {
+        "total_tickets": total,
+        "status_counts": status_counts,
+        "priority_counts": priority_counts,
+    }
+
+
 
 @app.post("/api/tickets", status_code=201)
 def create_ticket(ticket: TicketCreate):
