@@ -1,71 +1,104 @@
-# HelpDeskAI
+# HelpDeskAI — AI-Powered IT Support Assistant
 
-HelpDeskAI is a document-based support chatbot built with React, FastAPI, Ollama, and a retrieval system. It answers user questions using uploaded company documents and provides a fallback response when the required information is not available.
+HelpDeskAI is an AI-powered IT support application that helps users find answers from internal support documents, manage knowledge-base files, and create and track support tickets through a simple web interface.
 
 ## Features
 
-- Upload PDF and TXT documents.
-- Extract and index document content for retrieval.
-- Answer questions using Ollama (`llama3.2:3b`).
-- Delete uploaded documents and their indexed information.
-- Avoid duplicate document indexing.
-- Create support tickets through the application.
-- Return a fallback response when relevant information is unavailable.
+- **AI Assistant:** Ask questions about uploaded support documents and receive context-based answers.
+- **Knowledge Base:** Upload and manage documents used by the AI assistant.
+- **Document Retrieval:** Find relevant information from stored documents to help answer user questions.
+- **Ticket Management:** Create support tickets with titles, descriptions, categories, and priorities.
+- **Ticket Status Tracking:** Update and monitor ticket statuses, including Open, In Progress, and Resolved.
+- **Overview Dashboard:** View ticket statistics and recent support requests.
+- **Local LLM:** Run AI responses locally using Ollama and the `llama3.2:3b` model.
+- **REST API:** Use FastAPI endpoints to connect the frontend and backend.
 
-## Technologies Used
+## Technology Stack
 
-- **Frontend:** React, JavaScript, Vite
-- **Backend:** Python, FastAPI
-- **LLM:** Ollama with `llama3.2:3b`
-- **Retrieval:** Document processing and vector search
-- **Version Control:** Git
+| Component | Technology |
+|---|---|
+| Frontend | React, JavaScript, CSS |
+| Backend | Python, FastAPI |
+| AI Model Runtime | Ollama |
+| Language Model | `llama3.2:3b` |
+| API Communication | HTTP and REST |
+| Ticket Storage | SQLite, if configured in the backend |
+| Document Retrieval | Project-configured document indexing and retrieval components |
+
+## Project Structure
+
+```text
+helpdeskai/
+├── backend/
+│   ├── app/
+│   │   ├── database.py
+│   │   ├── document_store.py
+│   │   ├── llm.py
+│   │   ├── main.py
+│   │   ├── rag.py
+│   │   └── schemas.py
+│   └── requirements.txt
+├── frontend/
+│   ├── components/
+│   │   ├── Chat.jsx
+│   │   ├── Dashboard.jsx
+│   │   ├── Tickets.jsx
+│   │   └── Upload.jsx
+│   ├── App.jsx
+│   ├── index.css
+│   └── package.json
+├── .gitignore
+└── README.md
+```
+
+*Note: The structure above shows the main application files. Your local project may contain additional files.*
 
 ## Prerequisites
 
-Install the following before running the project:
+Install the following before running the application:
 
-- Python
+- Python 3.10 or a compatible version supported by your dependencies
 - Node.js and npm
 - Git
 - Ollama
 
-## Setup Instructions
+## Installation and Setup
 
 ### 1. Clone the repository
 
-```bash
-git clone YOUR_REPOSITORY_URL
-cd helpdeskai
+```powershell
+git clone https://github.com/Yogss01/HelpDeskAI.git
+cd HelpDeskAI
 ```
 
-Replace `YOUR_REPOSITORY_URL` with your actual Git repository URL. If you already have the project locally, skip this step.
+### 2. Set up Ollama
 
-### 2. Start Ollama
+Install Ollama from [https://ollama.com](https://ollama.com).
 
-Install Ollama and download the model:
+Download the model used by the application:
 
-```bash
+```powershell
 ollama pull llama3.2:3b
 ```
 
-Make sure Ollama is running before testing the chatbot.
+Make sure Ollama is running before testing AI responses.
 
-### 3. Start the backend
+### 3. Set up the Python backend
 
-Open a terminal in the project root:
+From the project root, run:
 
 ```powershell
 cd backend
 python -m venv .venv
 ```
 
-Activate the virtual environment in Windows PowerShell:
+Activate the virtual environment:
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
 ```
 
-Install the project dependencies:
+Install the backend dependencies:
 
 ```powershell
 pip install -r requirements.txt
@@ -77,15 +110,16 @@ Start the FastAPI server:
 uvicorn app.main:app --reload
 ```
 
-If your FastAPI application uses a different module path, use the command configured for your project.
+The backend should be available at:
 
-Backend API documentation is available at:
+- API base URL: `http://127.0.0.1:8000`
+- Interactive API documentation: `http://127.0.0.1:8000/docs`
 
-`http://127.0.0.1:8000/docs`
+Keep this terminal open while using the application.
 
-### 4. Start the frontend
+### 4. Set up the React frontend
 
-Open a **second terminal** in VS Code:
+Open a second PowerShell terminal in VS Code. From the project root, run:
 
 ```powershell
 cd frontend
@@ -93,24 +127,47 @@ npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite in your terminal.
+Open the local URL displayed by Vite, commonly:
 
-## Usage
+`http://localhost:5173`
 
-1. Start Ollama, the backend, and the frontend.
-2. Open HelpDeskAI in your browser.
-3. Upload a PDF or TXT document.
-4. Ask a question about the uploaded content.
-5. Verify that the chatbot answers using the document.
-6. Delete the document and verify that its information is no longer retrieved.
+Keep the frontend terminal running as well.
 
-## Fallback Response
+## How to Use HelpDeskAI
 
-When the answer cannot be found in the uploaded documents, HelpDeskAI responds:
+1. Start the backend, frontend, and Ollama.
+2. Open the application in your browser.
+3. Navigate to **Knowledge Base** and upload support documents.
+4. Open **AI Assistant** and ask questions related to the uploaded documents.
+5. Use **Tickets** to create support requests and update their statuses.
+6. Open **Overview** to view ticket counts and recent support activity.
 
-> I couldn't find this information in the uploaded documents. Please create a support ticket for further assistance.
+## API Endpoints
 
-## Notes
+The application includes ticket endpoints such as:
 
-- Keep secrets, passwords, virtual environments, and unnecessary generated files out of Git.
-- Follow the project's dependency and configuration files when setting up a new environment.
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/api/tickets` | Retrieve tickets |
+| POST | `/api/tickets` | Create a ticket |
+| PATCH | `/api/tickets/{ticketId}` | Update ticket information |
+
+Additional document and AI endpoints are available through the FastAPI documentation at `/docs`.
+
+## Project Goals
+
+HelpDeskAI demonstrates how a web application can combine a React interface, a Python REST API, local language models, document-based question answering, and ticket management into one support workspace.
+
+## Future Improvements
+
+- Authentication and role-based access control
+- Improved document-processing and retrieval accuracy
+- Ticket search, filtering, and analytics
+- Automated testing and error monitoring
+- Production deployment and secure configuration
+
+## Author
+
+**Yogss01**
+
+GitHub repository: [https://github.com/Yogss01/HelpDeskAI](https://github.com/Yogss01/HelpDeskAI)
