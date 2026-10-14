@@ -1,9 +1,15 @@
-
+import Tickets from "./components/Tickets.jsx";
+import React from "react";
 import { useState } from "react";
+import Upload from "./components/Upload.jsx";
 import {
-  MessageSquare, Ticket, Activity, UploadCloud
+  MessageSquare,
+  Ticket,
+  Activity,
+  UploadCloud,
 } from "lucide-react";
 import "./index.css";
+import Chat from "./components/Chat.jsx";
 
 const pages = [
   { id: "chat", label: "AI Assistant", icon: MessageSquare },
@@ -15,59 +21,53 @@ const pages = [
 export default function App() {
   const [page, setPage] = useState("chat");
 
+  const currentPage = pages.find((item) => item.id === page);
+
   return (
     <div className="layout">
       <aside className="sidebar">
         <h2>HelpDeskAI</h2>
-        <p>Knowledge & support</p>
+        <p>Knowledge &amp; support</p>
 
-        {pages.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            className={page === id ? "active" : ""}
-            onClick={() => setPage(id)}
-          >
-            <Icon size={18} /> {label}
-          </button>
-        ))}
+        <nav aria-label="Main navigation">
+          {pages.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              className={page === id ? "active" : ""}
+              onClick={() => setPage(id)}
+              aria-current={page === id ? "page" : undefined}
+            >
+              <Icon size={18} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
       </aside>
 
       <main>
         <header>
-          <h1>{pages.find(p => p.id === page)?.label}</h1>
+          <h1>{currentPage?.label ?? "HelpDeskAI"}</h1>
           <p>Your AI-powered support workspace</p>
         </header>
 
-        {page === "chat" && (
-          <section className="panel">
-            <h3>Ask your knowledge base</h3>
-            <p>Ask questions about uploaded documents.</p>
-            <textarea placeholder="Type your question..." />
-            <button disabled>Ask question</button>
-            <p className="muted">
-              Chat will be connected on Day 7.
-            </p>
-          </section>
-        )}
+        {page === "chat" && <Chat />}
 
-        {page === "upload" && (
-          <section className="panel">
-            <h3>Knowledge base</h3>
-            <p>PDF and TXT document upload will be enabled on Day 4.</p>
-          </section>
-        )}
+        {page === "upload" && <Upload />}
 
-        {page === "tickets" && (
-          <section className="panel">
-            <h3>Support tickets</h3>
-            <p>Ticket management will be enabled on Day 3.</p>
-          </section>
-        )}
+
+        {page === "tickets" && <Tickets />}
 
         {page === "dashboard" && (
           <section className="panel">
-            <h3>Support overview</h3>
-            <p>Your analytics will appear here on Day 9.</p>
+            <h3>Support Overview</h3>
+            <p>
+              Monitor helpdesk activity and support requests.
+            </p>
+            <p className="muted">
+              Dashboard statistics will be added after
+              ticket management.
+            </p>
           </section>
         )}
       </main>
