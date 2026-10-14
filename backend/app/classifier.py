@@ -71,6 +71,69 @@ TRAINING_DATA = [
     ("Please explain how this service works", "general"),
     ("I need some general information", "general"),
 
+    
+    # Additional account examples
+    ("My user account is locked after several login attempts", "account"),
+    ("I cannot log in using my employee ID", "account"),
+    ("I forgot the password for my work account", "account"),
+    ("How do I change my registered email address", "account"),
+    ("My login keeps failing even with the correct password", "account"),
+    ("I need to reset my account credentials", "account"),
+    ("I cannot verify my identity to sign in", "account"),
+    ("My account access was disabled", "account"),
+
+    # Additional billing examples
+    ("I was charged an extra fee on my invoice", "billing"),
+    ("The payment was deducted but the order failed", "billing"),
+    ("Please check the status of my pending refund", "billing"),
+    ("I received a duplicate payment receipt", "billing"),
+    ("Why is there an unexpected charge on my bill", "billing"),
+    ("My monthly subscription payment is incorrect", "billing"),
+    ("I need to dispute a transaction on my statement", "billing"),
+    ("The invoice total does not match the agreed price", "billing"),
+
+    # Additional technical examples
+    ("I receive an error whenever I start the program", "technical"),
+    ("The company website is not loading", "technical"),
+    ("My laptop keeps disconnecting from Wi-Fi", "technical"),
+    ("The application freezes during file upload", "technical"),
+    ("I cannot access the internal server", "technical"),
+    ("The software update failed to install", "technical"),
+    ("My screen shows an unexpected system error", "technical"),
+    ("The application is responding very slowly", "technical"),
+
+    # Additional general examples
+    ("Where can I read the employee handbook", "general"),
+    ("Who is responsible for handling this request", "general"),
+    ("I would like to know the company's working hours", "general"),
+    ("Can someone explain the leave application process", "general"),
+    ("Where can I find contact details for the support team", "general"),
+    ("I need information about the services available", "general"),
+    ("How do I submit a general enquiry", "general"),
+    ("Please clarify the procedure for making a request", "general"),
+
+    
+    # Additional technical examples for network and connectivity problems
+    ("My Wi-Fi connection keeps dropping", "technical"),
+    ("I keep losing my internet connection at work", "technical"),
+    ("The network disconnects whenever I use the application", "technical"),
+    ("I cannot connect my laptop to the office Wi-Fi", "technical"),
+
+    # Additional billing examples for payment questions
+    ("I have a question about a payment charge", "billing"),
+    ("Can you explain this transaction on my invoice", "billing"),
+    ("I need clarification about a payment I made", "billing"),
+    ("Why does my payment history show an unexpected amount", "billing"),
+
+
+    ("I was charged twice for the same purchase", "billing"),
+    ("A duplicate deduction appeared in my bank account", "billing"),
+    ("My account was debited two times for one order", "billing"),
+    ("There are two charges for a single invoice", "billing"),
+    ("The same payment appears twice on my statement", "billing"),
+
+
+
 ]
 
 

@@ -162,7 +162,7 @@ def create_ticket(ticket: TicketCreate):
     confidence = prediction["confidence"]
 
     # Initial experimental confidence threshold: 60%.
-    confidence_threshold = 0.45
+    confidence_threshold = 0.30
 
     # Automatically classify tickets submitted as "general"
     # only when the prediction reaches the threshold.
