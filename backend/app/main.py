@@ -19,6 +19,7 @@ from app.rag import (
 from pathlib import Path
 import json
 from app.llm import generate_answer
+from app.classifier import predict_category
 
 load_dotenv()
 
@@ -106,15 +107,45 @@ def get_ticket_analytics():
     }
 
 
-
 @app.post("/api/tickets", status_code=201)
 def create_ticket(ticket: TicketCreate):
+    # Convert the incoming ticket into a dictionary.
+    ticket_data = ticket.model_dump()
+
+    # Predict a category from the ticket description.
+    predicted_category = predict_category(
+        ticket_data["description"]
+    )
+
+    # Preserve the user's selected category when it is not "general".
+    # Otherwise, use the predicted category.
+    if ticket_data["category"] == "general":
+        ticket_data["category"] = predicted_category
+
+    # Prepare the ticket for database insertion.
     item = {
         "id": str(uuid4()),
-        **ticket.model_dump(),
+        **ticket_data,
         "status": "open",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
+
+    with connect() as db:
+        db.execute(
+            """
+            INSERT INTO tickets
+            (id, title, description, category, priority,
+             status, created_at)
+            VALUES
+            (:id, :title, :description, :category, :priority,
+             :status, :created_at)
+            """,
+            item,
+        )
+
+    return item
+
+
 
     with connect() as db:
         db.execute(
