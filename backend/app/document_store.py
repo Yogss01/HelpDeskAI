@@ -1,13 +1,10 @@
-
 from io import BytesIO
 
 import pytesseract
 from pdf2image import convert_from_bytes
 from pypdf import PdfReader
 
-pytesseract.pytesseract.tesseract_cmd = (
-    r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-)
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 POPPLER_PATH = (
     r"C:\Users\YogyasreeGurram(Quad\Downloads"
@@ -33,8 +30,7 @@ def extract_document(filename: str, content: bytes) -> str:
             )
 
             ocr_pages = [
-                pytesseract.image_to_string(image, lang="eng")
-                for image in images
+                pytesseract.image_to_string(image, lang="eng") for image in images
             ]
             ocr_text = "\n".join(ocr_pages)
 

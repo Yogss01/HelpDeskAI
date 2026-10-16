@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import {
   Send,
@@ -18,7 +17,7 @@ export default function Chat() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Editable ticket form state.
+  // Support ticket form state.
   const [ticketForm, setTicketForm] = useState(null);
   const [ticketTitle, setTicketTitle] = useState("");
   const [ticketDescription, setTicketDescription] = useState("");
@@ -72,14 +71,14 @@ export default function Chat() {
     } catch (err) {
       setError(
         err.message ||
-          "Could not connect to HelpDeskAI. Check that FastAPI is running and CORS is configured."
+        "Could not connect to HelpDeskAI. Check that FastAPI is running and CORS is configured."
       );
     } finally {
       setLoading(false);
     }
   }
 
-  // Open the form without creating a ticket.
+  // Open the ticket form.
   function openTicketForm(messageIndex) {
     const message = messages[messageIndex];
 
@@ -93,14 +92,14 @@ export default function Chat() {
     );
     setTicketDescription(
       `Question asked in HelpDeskAI:\n${message.originalQuestion}\n\n` +
-        `AI response:\n${message.content}`
+      `AI response:\n${message.content}`
     );
     setTicketCategory("technical");
     setTicketPriority("medium");
     setTicketForm({ messageIndex });
   }
 
-  // Close the form without creating a ticket.
+  // Close the ticket form.
   function closeTicketForm() {
     if (ticketSubmitting) return;
 
@@ -110,7 +109,7 @@ export default function Chat() {
     setError("");
   }
 
-  // Submit the edited ticket details to FastAPI.
+  // Submit a support ticket.
   async function submitTicket(event) {
     event.preventDefault();
 
@@ -156,10 +155,10 @@ export default function Chat() {
         previous.map((item, index) =>
           index === messageIndex
             ? {
-                ...item,
-                ticketCreated: true,
-                createdTicketId: data.id,
-              }
+              ...item,
+              ticketCreated: true,
+              createdTicketId: data.id,
+            }
             : item
         )
       );
@@ -176,43 +175,83 @@ export default function Chat() {
 
   return (
     <section className="panel chat-panel">
-      <h3>Ask your knowledge base</h3>
+      {/* Chat header */}
+      <div className="chat-header">
+        <div className="chat-header-icon">
+          <Bot size={23} />
+        </div>
 
-      <p>
-        Ask a question about company policies or IT support.
-      </p>
+        <div className="chat-header-text">
+          <h3>AI Assistant</h3>
+          <p>
+            <span className="chat-status-dot" />
+            Your intelligent support companion
+          </p>
+        </div>
+      </div>
 
+      {/* Messages */}
       <div className="chat-messages" aria-live="polite">
         {messages.length === 0 && (
-          <p className="muted">
-            Try asking: "How do I reset my password?"
-          </p>
-        )}
-
-        {messages.map((message, index) => (
-          <article className="chat-message" key={index}>
-            <div className="message-heading">
-              {message.role === "user" ? (
-                <User size={18} />
-              ) : (
-                <Bot size={18} />
-              )}
-
-              <strong>
-                {message.role === "user" ? "You" : "HelpDeskAI"}
-              </strong>
+          <div className="chat-welcome">
+            <div className="chat-welcome-icon">
+              <Bot size={30} />
             </div>
 
-            <p>{message.content}</p>
+            <h3>How can I help you today?</h3>
 
-            {/* Display source citations for AI responses. */}
-            {message.role === "assistant" &&
-              message.sources.length > 0 && (
+            <p>
+              Ask me about company policies, IT support,
+              password resets, or your knowledge base.
+            </p>
+
+          </div>
+        )}
+
+        {messages.map((message, index) => {
+          const isUser = message.role === "user";
+
+          return (
+            <article
+              className={`chat-message ${isUser ? "user-message" : "assistant-message"
+                }`}
+              key={index}
+            >
+              <div className="message-heading">
+                <span className="message-avatar">
+                  {isUser ? (
+                    <User size={16} />
+                  ) : (
+                    <Bot size={16} />
+                  )}
+                </span>
+
+                <strong>
+                  {isUser ? "You" : "HelpDeskAI"}
+                </strong>
+
+                {!isUser && (
+                  <span className="ai-label">AI</span>
+                )}
+              </div>
+
+              <div className="message-content">
+                <p>{message.content}</p>
+              </div>
+
+              {/* Sources used by the AI */}
+              {!isUser && message.sources.length > 0 && (
                 <div className="sources">
-                  <strong>Sources used</strong>
+                  <strong className="sources-heading">
+                    <FileText size={15} />
+                    Sources used
+                  </strong>
 
                   {message.sources.map((source, sourceIndex) => (
-                    <div className="source-item" key={sourceIndex}>
+                    <div
+                      className="source-item"
+                      key={sourceIndex}
+                    >
                       <div className="source-title">
                         <FileText size={16} />
 
@@ -235,7 +274,8 @@ export default function Chat() {
 
                       {typeof source.score === "number" && (
                         <small className="source-score">
-                          Retrieval score: {source.score.toFixed(3)}
+                          Retrieval score:{" "}
+                          {source.score.toFixed(3)}
                         </small>
                       )}
                     </div>
@@ -243,56 +283,78 @@ export default function Chat() {
                 </div>
               )}
 
-            {message.role === "assistant" && message.needsTicket && (
-              <div className="ticket-notice">
-                <p>
-                  <Ticket size={16} />
-                  This question needs further assistance.
-                </p>
-
-                {message.ticketCreated ? (
-                  <p role="status">
-                    Support ticket created successfully!
-                    <br />
-                    Ticket ID: {message.createdTicketId}
+              {/* Ticket assistance */}
+              {!isUser && message.needsTicket && (
+                <div className="ticket-notice">
+                  <p>
+                    <Ticket size={17} />
+                    This question needs further assistance.
                   </p>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => openTicketForm(index)}
-                    disabled={ticketSubmitting}
-                  >
-                    <Ticket size={16} />
-                    Create Support Ticket
-                  </button>
-                )}
-              </div>
-            )}
-          </article>
-        ))}
 
+                  {message.ticketCreated ? (
+                    <p role="status">
+                      Support ticket created successfully!
+                      <br />
+                      Ticket ID: {message.createdTicketId}
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => openTicketForm(index)}
+                      disabled={ticketSubmitting}
+                    >
+                      <Ticket size={16} />
+                      Create Support Ticket
+                    </button>
+                  )}
+                </div>
+              )}
+            </article>
+          );
+        })}
+
+        {/* AI loading indicator */}
         {loading && (
-          <p className="loading-message">
-            <LoaderCircle size={18} className="spinner" />
-            HelpDeskAI is preparing an answer...
-          </p>
+          <div className="chat-message assistant-message typing-message">
+            <div className="message-heading">
+              <span className="message-avatar">
+                <Bot size={16} />
+              </span>
+
+              <strong>HelpDeskAI</strong>
+            </div>
+
+            <div className="typing-indicator">
+              <span />
+              <span />
+              <span />
+              <small>Thinking...</small>
+            </div>
+          </div>
         )}
       </div>
 
+      {/* Error message */}
       {error && (
         <p className="error-message" role="alert">
           {error}
         </p>
       )}
 
-      {/* Editable support ticket form. */}
+      {/* Editable ticket form */}
       {ticketForm && (
         <section className="ticket-form-panel">
           <div className="ticket-form-heading">
-            <h3>Create Support Ticket</h3>
+            <div>
+              <h3>Create Support Ticket</h3>
+              <p className="muted">
+                Review the details before submitting.
+              </p>
+            </div>
 
             <button
               type="button"
+              className="ticket-close-button"
               onClick={closeTicketForm}
               disabled={ticketSubmitting}
               aria-label="Close ticket form"
@@ -303,56 +365,72 @@ export default function Chat() {
           </div>
 
           <form onSubmit={submitTicket} className="ticket-form">
-            <label htmlFor="ticket-title">Title</label>
-            <input
-              id="ticket-title"
-              type="text"
-              value={ticketTitle}
-              onChange={(event) => setTicketTitle(event.target.value)}
-              maxLength={200}
-              required
-              placeholder="Enter ticket title"
-              disabled={ticketSubmitting}
-            />
+            <div>
+              <label htmlFor="ticket-title">Title</label>
+              <input
+                id="ticket-title"
+                type="text"
+                value={ticketTitle}
+                onChange={(event) =>
+                  setTicketTitle(event.target.value)
+                }
+                maxLength={200}
+                required
+                placeholder="Enter ticket title"
+                disabled={ticketSubmitting}
+              />
+            </div>
 
-            <label htmlFor="ticket-description">Description</label>
-            <textarea
-              id="ticket-description"
-              value={ticketDescription}
-              onChange={(event) =>
-                setTicketDescription(event.target.value)
-              }
-              rows={6}
-              required
-              placeholder="Describe your issue"
-              disabled={ticketSubmitting}
-            />
+            <div>
+              <label htmlFor="ticket-description">
+                Description
+              </label>
+              <textarea
+                id="ticket-description"
+                value={ticketDescription}
+                onChange={(event) =>
+                  setTicketDescription(event.target.value)
+                }
+                rows={6}
+                required
+                placeholder="Describe your issue"
+                disabled={ticketSubmitting}
+              />
+            </div>
 
-            <label htmlFor="ticket-category">Category</label>
-            <select
-              id="ticket-category"
-              value={ticketCategory}
-              onChange={(event) => setTicketCategory(event.target.value)}
-              disabled={ticketSubmitting}
-            >
-              <option value="technical">Technical</option>
-              <option value="account">Account</option>
-              <option value="software">Software</option>
-              <option value="hardware">Hardware</option>
-              <option value="other">Other</option>
-            </select>
+            <div>
+              <label htmlFor="ticket-category">Category</label>
+              <select
+                id="ticket-category"
+                value={ticketCategory}
+                onChange={(event) =>
+                  setTicketCategory(event.target.value)
+                }
+                disabled={ticketSubmitting}
+              >
+                <option value="technical">Technical</option>
+                <option value="account">Account</option>
+                <option value="software">Software</option>
+                <option value="hardware">Hardware</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
 
-            <label htmlFor="ticket-priority">Priority</label>
-            <select
-              id="ticket-priority"
-              value={ticketPriority}
-              onChange={(event) => setTicketPriority(event.target.value)}
-              disabled={ticketSubmitting}
-            >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
+            <div>
+              <label htmlFor="ticket-priority">Priority</label>
+              <select
+                id="ticket-priority"
+                value={ticketPriority}
+                onChange={(event) =>
+                  setTicketPriority(event.target.value)
+                }
+                disabled={ticketSubmitting}
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
 
             <div className="ticket-form-actions">
               <button
@@ -373,7 +451,10 @@ export default function Chat() {
               >
                 {ticketSubmitting ? (
                   <>
-                    <LoaderCircle size={16} className="spinner" />
+                    <LoaderCircle
+                      size={16}
+                      className="spinner"
+                    />
                     Submitting...
                   </>
                 ) : (
@@ -388,25 +469,38 @@ export default function Chat() {
         </section>
       )}
 
-      <form className="chat-form" onSubmit={sendMessage}>
+      {/* Message input */}
+      <form className="chat-form chat-form-raised" onSubmit={sendMessage}>
         <textarea
           aria-label="Your question"
-          placeholder="Type your question..."
+          placeholder="Message HelpDeskAI..."
           value={question}
-          onChange={(event) => setQuestion(event.target.value)}
+          onChange={(event) =>
+            setQuestion(event.target.value)
+          }
           disabled={loading}
           maxLength={2000}
-          rows={3}
+          rows={2}
         />
 
         <button
           type="submit"
           disabled={loading || !question.trim()}
+          aria-label="Send message"
         >
-          <Send size={16} />
-          {loading ? "Sending..." : "Ask question"}
+          {loading ? (
+            <LoaderCircle size={18} className="spinner" />
+          ) : (
+            <Send size={18} />
+          )}
+          <span>{loading ? "Sending..." : "Send"}</span>
         </button>
       </form>
+
+      <p className="chat-footer-note">
+        HelpDeskAI can make mistakes. Verify important information
+        with your support team.
+      </p>
     </section>
   );
 }

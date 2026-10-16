@@ -7,28 +7,34 @@ FALLBACK_ANSWER = (
     "Please create a support ticket for further assistance."
 )
 
-MAX_SOURCES = 4
+MAX_SOURCES = 2
 MAX_CHARS_PER_SOURCE = 1800
+MIN_SOURCE_SCORE = 0.25
+
+
+def filter_relevant_sources(sources):
+    """Keep sources that meet the minimum similarity score."""
+
+    return [source for source in sources if source.get("score", 0) >= MIN_SOURCE_SCORE]
 
 
 def generate_answer(question, sources):
     """Answer questions using relevant document evidence only."""
 
-    if not sources:
+    relevant_sources = filter_relevant_sources(sources)
+
+    if not relevant_sources:
         return FALLBACK_ANSWER
 
     context_parts = []
 
-    for source in sources[:MAX_SOURCES]:
+    for source in relevant_sources[:MAX_SOURCES]:
         text = source.get("text", "").strip()
         filename = source.get("source", "Unknown source")
 
         if text:
             text = text[:MAX_CHARS_PER_SOURCE]
-            context_parts.append(
-                f"Source: {filename}\n"
-                f"Document text:\n{text}"
-            )
+            context_parts.append(f"Source: {filename}\n" f"Document text:\n{text}")
 
     if not context_parts:
         return FALLBACK_ANSWER
@@ -76,7 +82,7 @@ def generate_answer(question, sources):
 
         prefix = "Fallback answer:"
         if answer.startswith(prefix):
-            answer = answer[len(prefix):].strip()
+            answer = answer[len(prefix) :].strip()
 
         if not answer:
             return FALLBACK_ANSWER

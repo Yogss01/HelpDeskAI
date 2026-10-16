@@ -2,7 +2,6 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 
-
 # Example training data for HelpDeskAI.
 TRAINING_DATA = [
     # Account-related tickets
@@ -12,7 +11,6 @@ TRAINING_DATA = [
     ("My account has been locked", "account"),
     ("I cannot access my employee account", "account"),
     ("How do I change my username", "account"),
-
     # Billing-related tickets
     ("My invoice has an incorrect amount", "billing"),
     ("I have a question about my payment", "billing"),
@@ -20,7 +18,6 @@ TRAINING_DATA = [
     ("Please explain my billing statement", "billing"),
     ("My payment has not been processed", "billing"),
     ("I need a copy of my invoice", "billing"),
-
     # Technical support tickets
     ("My application keeps crashing", "technical"),
     ("The software is running very slowly", "technical"),
@@ -28,7 +25,6 @@ TRAINING_DATA = [
     ("My computer cannot connect to the network", "technical"),
     ("The application displays an error message", "technical"),
     ("The system is not working correctly", "technical"),
-
     # General support tickets
     ("I have a general question", "general"),
     ("Please provide more information about the service", "general"),
@@ -36,9 +32,6 @@ TRAINING_DATA = [
     ("Where can I find the support documentation", "general"),
     ("I would like to request some information", "general"),
     ("Please help me with a general enquiry", "general"),
-
-
-
     # Additional account-related examples
     ("I need help unlocking my user account", "account"),
     ("I cannot sign in after changing my password", "account"),
@@ -46,7 +39,6 @@ TRAINING_DATA = [
     ("I need to update my account details", "account"),
     ("I am unable to access my profile", "account"),
     ("How can I recover my username", "account"),
-
     # Additional billing-related examples
     ("There is a mistake on my bill", "billing"),
     ("I need help understanding a payment charge", "billing"),
@@ -54,7 +46,6 @@ TRAINING_DATA = [
     ("The amount deducted from my account is incorrect", "billing"),
     ("I need assistance with a payment receipt", "billing"),
     ("Why was I charged for this service", "billing"),
-
     # Additional technical examples
     ("I cannot open the application", "technical"),
     ("My computer freezes when I run the software", "technical"),
@@ -62,7 +53,6 @@ TRAINING_DATA = [
     ("I am unable to connect to the company network", "technical"),
     ("The program crashes when I click submit", "technical"),
     ("The application is not responding", "technical"),
-
     # Additional general examples
     ("Who should I contact for general assistance", "general"),
     ("I would like information about company services", "general"),
@@ -70,8 +60,6 @@ TRAINING_DATA = [
     ("I have a question about an internal process", "general"),
     ("Please explain how this service works", "general"),
     ("I need some general information", "general"),
-
-    
     # Additional account examples
     ("My user account is locked after several login attempts", "account"),
     ("I cannot log in using my employee ID", "account"),
@@ -81,7 +69,6 @@ TRAINING_DATA = [
     ("I need to reset my account credentials", "account"),
     ("I cannot verify my identity to sign in", "account"),
     ("My account access was disabled", "account"),
-
     # Additional billing examples
     ("I was charged an extra fee on my invoice", "billing"),
     ("The payment was deducted but the order failed", "billing"),
@@ -91,7 +78,6 @@ TRAINING_DATA = [
     ("My monthly subscription payment is incorrect", "billing"),
     ("I need to dispute a transaction on my statement", "billing"),
     ("The invoice total does not match the agreed price", "billing"),
-
     # Additional technical examples
     ("I receive an error whenever I start the program", "technical"),
     ("The company website is not loading", "technical"),
@@ -101,7 +87,6 @@ TRAINING_DATA = [
     ("The software update failed to install", "technical"),
     ("My screen shows an unexpected system error", "technical"),
     ("The application is responding very slowly", "technical"),
-
     # Additional general examples
     ("Where can I read the employee handbook", "general"),
     ("Who is responsible for handling this request", "general"),
@@ -111,29 +96,21 @@ TRAINING_DATA = [
     ("I need information about the services available", "general"),
     ("How do I submit a general enquiry", "general"),
     ("Please clarify the procedure for making a request", "general"),
-
-    
     # Additional technical examples for network and connectivity problems
     ("My Wi-Fi connection keeps dropping", "technical"),
     ("I keep losing my internet connection at work", "technical"),
     ("The network disconnects whenever I use the application", "technical"),
     ("I cannot connect my laptop to the office Wi-Fi", "technical"),
-
     # Additional billing examples for payment questions
     ("I have a question about a payment charge", "billing"),
     ("Can you explain this transaction on my invoice", "billing"),
     ("I need clarification about a payment I made", "billing"),
     ("Why does my payment history show an unexpected amount", "billing"),
-
-
     ("I was charged twice for the same purchase", "billing"),
     ("A duplicate deduction appeared in my bank account", "billing"),
     ("My account was debited two times for one order", "billing"),
     ("There are two charges for a single invoice", "billing"),
     ("The same payment appears twice on my statement", "billing"),
-
-
-
 ]
 
 
@@ -143,22 +120,24 @@ def train_classifier():
     texts = [item[0] for item in TRAINING_DATA]
     labels = [item[1] for item in TRAINING_DATA]
 
-    model = Pipeline([
-        (
-            "tfidf",
-            TfidfVectorizer(
-                lowercase=True,
-                ngram_range=(1, 2),
+    model = Pipeline(
+        [
+            (
+                "tfidf",
+                TfidfVectorizer(
+                    lowercase=True,
+                    ngram_range=(1, 2),
+                ),
             ),
-        ),
-        (
-            "classifier",
-            LogisticRegression(
-                max_iter=1000,
-                random_state=42,
+            (
+                "classifier",
+                LogisticRegression(
+                    max_iter=1000,
+                    random_state=42,
+                ),
             ),
-        ),
-    ])
+        ]
+    )
 
     model.fit(texts, labels)
 
@@ -167,6 +146,7 @@ def train_classifier():
 
 # Train the model when this module is imported.
 classifier = train_classifier()
+
 
 def predict_category_with_confidence(
     description: str,
@@ -203,6 +183,3 @@ def predict_category(description: str) -> str:
     result = predict_category_with_confidence(description)
 
     return result["category"]
-
-
-

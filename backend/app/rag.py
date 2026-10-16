@@ -1,12 +1,13 @@
-
 import re
 import json
 from pathlib import Path
 
 import faiss
 import numpy as np
-from sentence_transformers import SentenceTransformer
-
+from sentence_transformers import (
+    SentenceTransformer,
+    CrossEncoder,
+)
 
 DATA = Path("data")
 DATA.mkdir(exist_ok=True)
@@ -15,9 +16,14 @@ INDEX_FILE = DATA / "index.faiss"
 CHUNKS_FILE = DATA / "chunks.json"
 
 MIN_SCORE = 0.22
+CANDIDATE_MULTIPLIER = 5
+MIN_CANDIDATES = 20
 
+# Embedding model for initial retrieval.
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
+# CrossEncoder for reranking retrieved passages.
+reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L6-v2")
 
 
 def split_chunks(text, size=900, overlap=150):
@@ -39,7 +45,7 @@ def split_chunks(text, size=900, overlap=150):
     chunks = []
 
     for start in range(0, len(text), size - overlap):
-        chunk = text[start:start + size].strip()
+        chunk = text[start : start + size].strip()
 
         if chunk:
             chunks.append(chunk)
@@ -50,7 +56,6 @@ def split_chunks(text, size=900, overlap=150):
     return chunks
 
 
-
 def add_document(text, filename):
     """Add or replace a document and rebuild the FAISS index."""
 
@@ -59,34 +64,26 @@ def add_document(text, filename):
     if not chunks:
         return 0
 
-    # Load existing document records.
     if CHUNKS_FILE.exists():
-        records = json.loads(
-            CHUNKS_FILE.read_text(encoding="utf-8")
-        )
+        records = json.loads(CHUNKS_FILE.read_text(encoding="utf-8"))
     else:
         records = []
 
-    # Get the existing chunks for this filename.
     existing_chunks = [
         record.get("text", "").strip()
         for record in records
         if record.get("source") == filename
     ]
 
-    # Skip indexing if the document content has not changed.
+    # Avoid re-indexing unchanged documents.
     if existing_chunks == chunks:
         print(f"DOCUMENT ALREADY INDEXED: {filename}")
         return 0
 
-    # Remove all old chunks belonging to this filename.
-    updated_records = [
-        record
-        for record in records
-        if record.get("source") != filename
-    ]
+    # Remove old chunks for this document.
+    updated_records = [record for record in records if record.get("source") != filename]
 
-    # Add the latest chunks for this filename.
+    # Add the latest chunks.
     updated_records.extend(
         {
             "text": chunk,
@@ -95,11 +92,7 @@ def add_document(text, filename):
         for chunk in chunks
     )
 
-    # Rebuild the FAISS index from all remaining records.
-    all_texts = [
-        record["text"]
-        for record in updated_records
-    ]
+    all_texts = [record["text"] for record in updated_records]
 
     vectors = np.asarray(
         model.encode(
@@ -112,13 +105,11 @@ def add_document(text, filename):
     index = faiss.IndexFlatIP(vectors.shape[1])
     index.add(vectors)
 
-    # Save the rebuilt index.
     faiss.write_index(
         index,
         str(INDEX_FILE),
     )
 
-    # Save the updated records.
     CHUNKS_FILE.write_text(
         json.dumps(
             updated_records,
@@ -127,10 +118,7 @@ def add_document(text, filename):
         encoding="utf-8",
     )
 
-    print(
-        f"DOCUMENT INDEXED: {filename} "
-        f"({len(chunks)} chunks)"
-    )
+    print(f"DOCUMENT INDEXED: {filename} " f"({len(chunks)} chunks)")
 
     return len(chunks)
 
@@ -141,29 +129,19 @@ def delete_document(filename):
     if not CHUNKS_FILE.exists():
         return 0
 
-    records = json.loads(
-        CHUNKS_FILE.read_text(encoding="utf-8")
-    )
+    records = json.loads(CHUNKS_FILE.read_text(encoding="utf-8"))
 
-    # Remove every chunk belonging to this filename.
     remaining_records = [
-        record
-        for record in records
-        if record.get("source") != filename
+        record for record in records if record.get("source") != filename
     ]
 
     removed_count = len(records) - len(remaining_records)
 
-    # Return zero if the document was not found.
     if removed_count == 0:
         return 0
 
-    # Rebuild the FAISS index using the remaining chunks.
     if remaining_records:
-        texts = [
-            record["text"]
-            for record in remaining_records
-        ]
+        texts = [record["text"] for record in remaining_records]
 
         vectors = np.asarray(
             model.encode(
@@ -177,11 +155,9 @@ def delete_document(filename):
         index.add(vectors)
 
     else:
-        # Keep a valid empty index if no chunks remain.
         dimension = model.get_sentence_embedding_dimension()
         index = faiss.IndexFlatIP(dimension)
 
-    # Save the rebuilt index and remaining records.
     faiss.write_index(
         index,
         str(INDEX_FILE),
@@ -195,29 +171,25 @@ def delete_document(filename):
         encoding="utf-8",
     )
 
-    print(
-        f"DOCUMENT DELETED: {filename} "
-        f"({removed_count} chunks removed)"
-    )
+    print(f"DOCUMENT DELETED: {filename} " f"({removed_count} chunks removed)")
 
     return removed_count
 
 
 def search_documents(question, top_k=4):
-    """Return the highest-scoring chunks above the minimum score."""
+    """Retrieve candidate chunks and rerank them for relevance."""
 
     if not INDEX_FILE.exists() or not CHUNKS_FILE.exists():
         return []
 
     index = faiss.read_index(str(INDEX_FILE))
 
-    records = json.loads(
-        CHUNKS_FILE.read_text(encoding="utf-8")
-    )
+    records = json.loads(CHUNKS_FILE.read_text(encoding="utf-8"))
 
     if not records or index.ntotal == 0:
         return []
 
+    # Encode the question for initial FAISS retrieval.
     query = np.asarray(
         model.encode(
             [question],
@@ -226,15 +198,16 @@ def search_documents(question, top_k=4):
         dtype="float32",
     )
 
-    search_count = min(
-        max(top_k, 1),
+    # Retrieve more candidates than the final requested count.
+    candidate_count = min(
+        max(top_k * CANDIDATE_MULTIPLIER, MIN_CANDIDATES),
         index.ntotal,
         len(records),
     )
 
-    scores, ids = index.search(query, search_count)
+    scores, ids = index.search(query, candidate_count)
 
-    results = []
+    candidates = []
     seen = set()
 
     for score, chunk_id in zip(scores[0], ids[0]):
@@ -243,7 +216,7 @@ def search_documents(question, top_k=4):
 
         score = float(score)
 
-        # Ignore chunks below the initial relevance threshold.
+        # Keep the existing initial similarity threshold.
         if score < MIN_SCORE:
             continue
 
@@ -251,7 +224,7 @@ def search_documents(question, top_k=4):
         text = record.get("text", "").strip()
         filename = record.get("source", "Unknown source")
 
-        # Remove duplicate chunks from the results.
+        # Remove duplicate chunks.
         key = (filename, text)
 
         if not text or key in seen:
@@ -259,11 +232,31 @@ def search_documents(question, top_k=4):
 
         seen.add(key)
 
-        results.append(
+        candidates.append(
             {
                 **record,
                 "score": score,
             }
         )
 
-    return results
+    if not candidates:
+        return []
+
+    # Evaluate each question and candidate passage together.
+    pairs = [[question, candidate["text"]] for candidate in candidates]
+
+    rerank_scores = reranker.predict(pairs)
+
+    for candidate, rerank_score in zip(
+        candidates,
+        rerank_scores,
+    ):
+        candidate["rerank_score"] = float(rerank_score)
+
+    # Sort by CrossEncoder score, highest first.
+    candidates.sort(
+        key=lambda item: item["rerank_score"],
+        reverse=True,
+    )
+
+    return candidates[:top_k]

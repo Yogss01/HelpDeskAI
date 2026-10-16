@@ -19,8 +19,85 @@ from app.rag import (
     search_documents,
     delete_document as remove_document_from_index,
 )
-from app.llm import generate_answer
+from app.llm import generate_answer,filter_relevant_sources
 from app.classifier import predict_category_with_confidence
+
+import re
+
+STOP_WORDS = {
+    "the", "a", "an", "and", "or", "to", "of", "in",
+    "on", "for", "by", "is", "are", "was", "were",
+    "be", "been", "being", "it", "this", "that",
+    "they", "them", "their", "which", "what", "how",
+    "must", "should", "can", "could", "would", "will",
+    "according", "document", "employees", "employee",
+}
+
+
+def source_supports_answer(answer, source_text):
+    """Check whether a source shares meaningful terms with the answer."""
+
+    def get_keywords(text):
+        words = re.findall(r"[a-zA-Z0-9]+", text.lower())
+
+        return {
+            word
+            for word in words
+            if len(word) >= 3 and word not in STOP_WORDS
+        }
+
+    answer_keywords = get_keywords(answer)
+    source_keywords = get_keywords(source_text)
+
+    if not answer_keywords or not source_keywords:
+        return False
+
+    shared_keywords = answer_keywords & source_keywords
+
+    return len(shared_keywords) >= 3
+
+
+def make_relevant_excerpt(answer, source_text, max_length=250):
+    """Show a source excerpt near the answer's key terms."""
+
+    if len(source_text) <= max_length:
+        return source_text
+
+    answer_words = re.findall(
+        r"[a-zA-Z0-9]+",
+        answer.lower(),
+    )
+
+    source_lower = source_text.lower()
+
+    best_position = -1
+
+    for word in answer_words:
+        if len(word) < 5 or word in STOP_WORDS:
+            continue
+
+        position = source_lower.find(word)
+
+        if position >= 0:
+            best_position = position
+            break
+
+    if best_position < 0:
+        return source_text[:max_length]
+
+    start = max(0, best_position - 60)
+    end = min(len(source_text), start + max_length)
+
+    excerpt = source_text[start:end].strip()
+
+    if start > 0:
+        excerpt = "..." + excerpt
+
+    if end < len(source_text):
+        excerpt += "..."
+
+    return excerpt
+
 
 
 load_dotenv()
@@ -385,8 +462,26 @@ def chat(request: ChatRequest):
         ]
     )
 
+    # Identify questions about the company's intended work environment.
+    is_environment_question = any(
+        phrase in question_lower
+        for phrase in [
+            "what environment does the company want",
+            "what kind of working environment",
+            "working environment does the code",
+            "environment does the company provide",
+        ]
+    )
+
+
     if is_dress_question:
         search_query = "dress and appearance"
+    elif is_environment_question:
+        search_query = (
+            "working environment productive positive "
+            "enjoyable safe harassment discrimination"
+        )
+
     else:
         search_query = question
 
@@ -472,6 +567,23 @@ def chat(request: ChatRequest):
             else unique_results[:4]
         )
 
+    elif is_environment_question:
+        matching = [
+            item
+            for item in unique_results
+            if (
+                "working environment" in item["text"].lower()
+                and "productive, positive, enjoyable"
+                in item["text"].lower()
+            )
+        ]
+
+        sources = (
+            matching[:2]
+            if matching
+            else unique_results[:4]
+        )
+
     else:
         sources = unique_results[:4]
 
@@ -501,6 +613,24 @@ def chat(request: ChatRequest):
     if needs_ticket:
         sources = []
 
+    displayed_sources = [
+        source
+        for source in filter_relevant_sources(sources)
+        if source_supports_answer(
+            answer,
+            source.get("text", ""),
+            )
+    ]
+    displayed_sources = sorted(
+        displayed_sources,
+        key=lambda item: item.get(
+            "rerank_score",
+            float("-inf"),
+        ),
+            reverse=True,
+    )
+    displayed_sources = displayed_sources[:1]
+
     return {
         "answer": answer,
         "sources": [
@@ -509,13 +639,20 @@ def chat(request: ChatRequest):
                     "source",
                     "Unknown source",
                 ),
-                "excerpt": item.get("text", "")[:250],
+                "excerpt": make_relevant_excerpt(
+                    answer,
+                    item.get("text", ""),
+                ),
                 "score": round(
                     float(item.get("score", 0)),
                     3,
                 ),
+                "rerank_score": round(
+                    float(item.get("rerank_score", 0)),
+                    3,
+                ),
             }
-            for item in sources
+            for item in displayed_sources
         ],
         "needs_ticket": needs_ticket,
     }
