@@ -10,3 +10,4 @@ numpy
 httpx
 pytest
 openai
+groq
