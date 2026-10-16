@@ -24,3 +24,6 @@ backend/data/
 
 # Local sample and test documents
 sample_docs/
+
+backend/main_backup.py
+backend/rag_backup.py
